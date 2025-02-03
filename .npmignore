@@ -4,7 +4,6 @@ src/*.test.tsx
 src/*.test.ts
 src/*.stories.tsx
 src/App.tsx
-src/index.tsx
 src/App.css
 src/index.css
 public
