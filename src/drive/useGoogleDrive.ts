@@ -21,7 +21,6 @@ export const useGoogleDrive = (
         clientId,
         apiKey,
         appId,
-        token,
         scope,
     }: GoogleDriveProps) => {
     const {loadScript} = useScriptLoader();
@@ -223,7 +222,7 @@ export const useGoogleDrive = (
         }: {
             onPermissionChanged: (permissionData: any) => void;
             token: string;
-            fileId: string | null
+            fileId: string;
         }) => {
         const permissionResponse = await fetch(
             `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,

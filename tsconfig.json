@@ -8,7 +8,8 @@
     "declarationDir": "dist",
     "jsx": "react-jsx",
     "moduleResolution": "node",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "strictNullChecks": true
   },
   "include": [
     "src"

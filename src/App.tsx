@@ -97,7 +97,7 @@ export const App = () => {
                         if (token) {
                             await changePermission({
                                 token,
-                                fileId,
+                                fileId: fileId!,
                                 onPermissionChanged: (data) => console.log("Permission changed", data)
                             });
                         } else {
