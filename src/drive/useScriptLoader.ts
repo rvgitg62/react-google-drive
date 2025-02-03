@@ -6,7 +6,6 @@ export const useScriptLoader = () => {
             // Check if the script is already present
             const existingScript = document.querySelector(`script[src="${url}"]`);
             if (existingScript) {
-                console.log("Script already loaded");
                 resolve(url);
                 return;
             }

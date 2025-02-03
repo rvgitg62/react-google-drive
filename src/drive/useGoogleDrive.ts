@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useState} from "react";
 import {useScriptLoader} from "./useScriptLoader";
 
+export type OnError = (error: any) => void;
+
 export interface GoogleDriveProps {
     clientId: string;
     apiKey: string;
@@ -31,7 +33,7 @@ export const useGoogleDrive = (
      */
     const clientLoaded = useCallback(() => {
         if (window.google?.accounts?.oauth2) {
-            const client = (window as any).google.accounts.oauth2.initTokenClient({
+            const client = window.google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
                 scope: scope,
                 callback: '', // defined later
@@ -47,7 +49,6 @@ export const useGoogleDrive = (
      * Loads the discovery doc to initialize the API.
      */
     const initializePicker = useCallback(async () => {
-        console.log("Initialize picker");
         if (window.gapi?.client) {
             await (window as any).gapi.client.load(
                 "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"
@@ -58,11 +59,10 @@ export const useGoogleDrive = (
     }, []);
 
     const gapiLoaded = useCallback(() => {
-        console.log("GAPI loaded");
-        if ((window as any).gapi) {
-            (window as any).gapi.load("client:picker", initializePicker);
+        if (window.gapi) {
+            window.gapi.load("client:picker", initializePicker);
         } else {
-            console.error("window.gapi is undefined, retrying...");
+            console.error("window.gapi is undefined");
         }
     }, [initializePicker]);
 
@@ -72,37 +72,36 @@ export const useGoogleDrive = (
             loadScript("https://accounts.google.com/gsi/client"),
         ])
             .then(() => {
-                console.log("✅ All Google scripts loaded.");
                 gapiLoaded();
                 clientLoaded();
             })
-            .catch((error) => console.error("❌ Error loading Google scripts", error));
+            .catch((error) => console.error("Error loading Google scripts", error));
 
     }, [clientLoaded, gapiLoaded, loadScript]);
 
-    const getToken = (onGetToken: (token: string) => void) => {
-        console.log("Get token");
+    const getToken = (onGetToken: (token: string) => void, onError?: OnError) => {
         if (!tokenClient) {
-            console.error("Token client is not initialized");
+            onError?.("Token client is not initialized");
             return;
         }
 
         tokenClient.callback = async (response: any) => {
             if (response.error !== undefined) {
+                onError?.(response.error);
                 throw response;
             }
             const accessToken = response.access_token;
-            console.log("Access token:", accessToken);
             onGetToken(accessToken);
         };
 
         tokenClient.requestAccessToken({prompt: "consent"});
     };
 
-    const pickFile = useCallback(({token, folderId, onFilePicked}: {
+    const pickFile = useCallback(({token, folderId, onFilePicked, onError}: {
         token: string,
         folderId: string,
-        onFilePicked: (result: any) => void
+        onFilePicked: (result: any) => void,
+        onError?: OnError
     }) => {
         const view = new window.google.picker.View(window.google.picker.ViewId.DOCS);
         view.setMimeTypes('image/png,image/jpeg,image/jpg');
@@ -124,13 +123,13 @@ export const useGoogleDrive = (
                 if (data.action === window.google.picker.Action.PICKED) {
                     const document = data[window.google.picker.Response.DOCUMENTS][0];
                     const fileId = document[window.google.picker.Document.ID];
-                    console.log(fileId);
                     const res = await window.gapi.client.drive.files.get({
                         'fileId': fileId,
                         'fields': '*',
                     });
-                    console.log('picker response', res.result);
                     onFilePicked(res.result);
+                } else {
+                    onError?.(data);
                 }
             })
             .build();
@@ -140,10 +139,12 @@ export const useGoogleDrive = (
     const createFolder = useCallback(async (
         {
             folderName,
-            onFolderCreated
+            onFolderCreated,
+            onError,
         }: {
             folderName: string,
-            onFolderCreated: (folderId: string) => void
+            onFolderCreated: (folderId: string) => void,
+            onError?: OnError
         }) => {
         try {
             const response = await window.gapi.client.drive.files.create({
@@ -157,10 +158,10 @@ export const useGoogleDrive = (
             if (response.status === 200) {
                 onFolderCreated(response.result.id);
             } else {
-                console.error("Error creating folder:", response);
+                onError?.(response.result);
             }
-        } catch (error) {
-            console.error("Failed to create folder:", error);
+        } catch (error: any) {
+            onError?.(error?.result?.error);
         }
     }, []);
 
@@ -168,14 +169,16 @@ export const useGoogleDrive = (
     const uploadFile = useCallback(async (
         {
             file,
-            onFileUploaded,
             folderId,
-            token
+            token,
+            onFileUploaded,
+            onError,
         }: {
             file: File;
-            onFileUploaded: (fileId: string, fileUrl: string) => void;
             folderId: string;
-            token: string
+            token: string;
+            onFileUploaded: (fileId: string, fileUrl: string) => void;
+            onError?: OnError;
         }) => {
 
         const metadata = {
@@ -201,7 +204,7 @@ export const useGoogleDrive = (
             const uploadData = await uploadResponse.json();
 
             if (uploadData.error) {
-                throw new Error(uploadData.error.message);
+                onError?.(uploadData.error);
             }
 
             const fileId = uploadData.id;
@@ -209,43 +212,49 @@ export const useGoogleDrive = (
             const fileUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
             onFileUploaded(fileId, fileUrl);
 
-        } catch (error) {
-            console.error("Failed to upload file:", error);
+        } catch (error: any) {
+            onError?.(error?.result?.error);
         }
 
     }, []);
     const changePermission = useCallback(async (
         {
-            onPermissionChanged,
             token,
             fileId,
+            onPermissionChanged,
+            onError,
         }: {
-            onPermissionChanged: (permissionData: any) => void;
             token: string;
             fileId: string;
+            onPermissionChanged: (permissionData: any) => void;
+            onError?: OnError;
         }) => {
-        const permissionResponse = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
-            {
-                method: "POST",
-                headers: new Headers({
-                    Authorization: "Bearer " + token,
-                    "Content-Type": "application/json",
-                }),
-                body: JSON.stringify({
-                    role: "reader", // Allows viewing
-                    type: "anyone", // Public access
-                }),
+        try {
+            const permissionResponse = await fetch(
+                `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+                {
+                    method: "POST",
+                    headers: new Headers({
+                        Authorization: "Bearer " + token,
+                        "Content-Type": "application/json",
+                    }),
+                    body: JSON.stringify({
+                        role: "reader", // Allows viewing
+                        type: "anyone", // Public access
+                    }),
+                }
+            );
+
+            const permissionData = await permissionResponse.json();
+
+            if (permissionData.error) {
+                onError?.(permissionData.error);
             }
-        );
 
-        const permissionData = await permissionResponse.json();
-
-        if (permissionData.error) {
-            throw new Error(permissionData.error.message);
+            onPermissionChanged(permissionData);
+        } catch (e: any) {
+            onError?.(e.result.error);
         }
-
-        onPermissionChanged(permissionData);
 
     }, []);
 
