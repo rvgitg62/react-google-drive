@@ -1,0 +1,18 @@
+# Ignore local development files
+node_modules
+src/*.test.tsx
+src/*.test.ts
+src/*.stories.tsx
+src/App.tsx
+src/index.tsx
+src/App.css
+src/index.css
+public
+.storybook
+.vscode
+dist/*.map
+
+dist/*
+!dist/index.js
+!dist/index.esm.js
+!dist/types
