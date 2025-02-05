@@ -79,7 +79,7 @@ export const useGoogleDrive = (
 
     }, [clientLoaded, gapiLoaded, loadScript]);
 
-    const getToken = (onGetToken: (token: string) => void, onError?: OnError) => {
+    const getToken = useCallback((onGetToken: (token: string) => void, onError?: OnError) => {
         if (!tokenClient) {
             onError?.("Token client is not initialized");
             return;
@@ -95,7 +95,7 @@ export const useGoogleDrive = (
         };
 
         tokenClient.requestAccessToken({prompt: "consent"});
-    };
+    }, [tokenClient]);
 
     const pickFile = useCallback(({token, folderId, onFilePicked, onError}: {
         token: string,
@@ -160,6 +160,31 @@ export const useGoogleDrive = (
             } else {
                 onError?.(response.result);
             }
+        } catch (error: any) {
+            onError?.(error?.result?.error);
+        }
+    }, []);
+
+    const downloadFile = useCallback(async (
+        {
+            token,
+            fileId,
+            onFileDownloaded,
+            onError,
+        }: {
+            token: string,
+            fileId: string,
+            onFileDownloaded: (response: Response) => void,
+            onError?: OnError
+        }) => {
+        try {
+            const response: Response = await fetch(
+                `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+                {
+                    headers: {Authorization: `Bearer ${token}`},
+                }
+            );
+            onFileDownloaded(response);
         } catch (error: any) {
             onError?.(error?.result?.error);
         }
@@ -263,6 +288,7 @@ export const useGoogleDrive = (
         pickFile,
         createFolder,
         uploadFile,
+        downloadFile,
         changePermission
     };
 };
